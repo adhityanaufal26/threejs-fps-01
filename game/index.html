@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMBERLINE — Foundry-7 Tactical FPS</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0b0e12; font-family: "Segoe UI", Arial, sans-serif; color: #e8e4d8; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+  .hidden { display: none !important; }
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  #crosshair .dot { position: absolute; left: -2px; top: -2px; width: 4px; height: 4px;
+    background: #ffd34d; border-radius: 50%; }
+  #crosshair .arm { position: absolute; background: #ffd34d; }
+  #hitmarker { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; opacity: 0; }
+  #hitmarker::before, #hitmarker::after { content: ""; position: absolute; left: 12px; top: 0;
+    width: 2px; height: 26px; background: #fff; }
+  #hitmarker::before { transform: rotate(45deg); }
+  #hitmarker::after { transform: rotate(-45deg); }
+  #hitmarker.kill::before, #hitmarker.kill::after { background: #ff5544; }
+  #hudTop { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 18px; align-items: center; font-size: 15px; letter-spacing: 1px; }
+  #hudTop .pill { background: rgba(8, 10, 14, 0.72); border: 1px solid #3a4250;
+    padding: 6px 14px; border-radius: 4px; }
+  #timer { font-size: 22px; font-weight: 700; color: #ffd34d; }
+  #timer.low { color: #ff5544; }
+  #hudBottom { position: absolute; left: 22px; bottom: 20px; right: 22px;
+    display: flex; justify-content: space-between; align-items: flex-end; }
+  .panel { background: rgba(8, 10, 14, 0.72); border: 1px solid #3a4250;
+    border-radius: 4px; padding: 10px 16px; }
+  #healthNum { font-size: 34px; font-weight: 800; line-height: 1; }
+  #healthNum.low { color: #ff5544; }
+  #healthBar { width: 190px; height: 8px; background: #222a33; margin-top: 6px; border-radius: 2px; }
+  #healthFill { height: 100%; background: #7fd08a; border-radius: 2px; }
+  #ammoNum { font-size: 34px; font-weight: 800; line-height: 1; text-align: right; }
+  #weaponName { font-size: 13px; letter-spacing: 2px; color: #9fb0c3; text-align: right; }
+  #moneyLine { font-size: 15px; margin-top: 4px; color: #ffd34d; }
+  #objective { position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 1px; color: #cfe3ff;
+    background: rgba(8, 10, 14, 0.6); padding: 5px 12px; border-radius: 4px; }
+  #killfeed { position: absolute; top: 14px; right: 16px; text-align: right; font-size: 13px;
+    line-height: 1.7; color: #d8d2c2; text-shadow: 0 1px 2px #000; }
+  #banner { position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+    font-size: 30px; font-weight: 800; letter-spacing: 4px; text-shadow: 0 2px 10px #000;
+    opacity: 0; transition: opacity 0.25s; text-align: center; }
+  #subbanner { position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+    font-size: 15px; color: #cfe3ff; text-shadow: 0 1px 4px #000; text-align: center; }
+  #hint { position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #b8c4d4; text-shadow: 0 1px 3px #000; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 30, 10, 0.55) 100%); }
+  #plantBar { position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+    width: 220px; height: 10px; background: #222a33; border: 1px solid #3a4250; border-radius: 3px; }
+  #plantFill { height: 100%; width: 0%; background: #ffd34d; }
+  #plantLabel { position: absolute; left: 50%; top: 54%; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 2px; color: #ffd34d; text-shadow: 0 1px 3px #000; }
+  /* ---------- overlays ---------- */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center;
+    justify-content: center; background: rgba(5, 7, 10, 0.82); backdrop-filter: blur(2px); }
+  .card { width: 620px; max-width: 92vw; background: #10141b; border: 1px solid #46536a;
+    border-radius: 8px; padding: 28px 32px; box-shadow: 0 12px 50px rgba(0, 0, 0, 0.7); }
+  .card h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 6px; color: #ffd34d; }
+  .card h2 { margin: 0 0 12px; font-size: 24px; letter-spacing: 3px; color: #ffd34d; }
+  .card h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 3px; color: #8fa3bb; }
+  .card p { font-size: 14px; line-height: 1.65; color: #cfd6df; margin: 8px 0; }
+  .card .keys { font-size: 13px; line-height: 2.0; color: #aeb9c8; }
+  .card .keys b { color: #ffd34d; background: #1c2330; border: 1px solid #3a4250;
+    border-radius: 3px; padding: 1px 7px; font-weight: 600; }
+  .bigbtn { display: inline-block; margin-top: 16px; padding: 13px 30px; font-size: 17px;
+    font-weight: 700; letter-spacing: 2px; color: #111; background: #ffd34d; border: 0;
+    border-radius: 4px; cursor: pointer; }
+  .bigbtn:hover { background: #ffdf7d; }
+  .bigbtn.ghost { background: transparent; color: #ffd34d; border: 1px solid #ffd34d; margin-left: 10px; }
+  .shopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .shopItem { border: 1px solid #3a4250; border-radius: 6px; padding: 12px 14px; cursor: pointer;
+    background: #151a22; }
+  .shopItem:hover { border-color: #ffd34d; }
+  .shopItem.owned { border-color: #7fd08a; }
+  .shopItem.cant { opacity: 0.45; cursor: default; }
+  .shopItem .nm { font-size: 16px; font-weight: 700; }
+  .shopItem .pr { float: right; color: #ffd34d; font-weight: 700; }
+  .shopItem .ds { font-size: 12px; color: #9fb0c3; margin-top: 4px; line-height: 1.5; }
+  .shopItem .key { font-size: 11px; color: #8fa3bb; }
+  #buyMoney { color: #ffd34d; font-weight: 700; }
+  .scoreLine { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
+  .amber { color: #ffb347; } .teal { color: #5fd3c8; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+
+<div id="hud" class="hidden">
+  <div id="crosshair">
+    <div class="dot"></div>
+    <div class="arm" id="armT" style="left:-1px;top:-14px;width:2px;height:8px"></div>
+    <div class="arm" id="armB" style="left:-1px;top:6px;width:2px;height:8px"></div>
+    <div class="arm" id="armL" style="left:-14px;top:-1px;width:8px;height:2px"></div>
+    <div class="arm" id="armR" style="left:6px;top:-1px;width:8px;height:2px"></div>
+  </div>
+  <div id="hitmarker"></div>
+  <div id="hudTop">
+    <span class="pill"><span class="amber">EMBER</span> <b id="scoreUs">0</b></span>
+    <span class="pill">ROUND <b id="roundNum">1</b> / 9</span>
+    <span class="pill"><span id="timer">1:40</span></span>
+    <span class="pill"><span class="teal">FROST</span> <b id="scoreThem">0</b></span>
+  </div>
+  <div id="objective">Plant the charge at SITE A or SITE B — or eliminate FROST.</div>
+  <div id="killfeed"></div>
+  <div id="banner"></div>
+  <div id="subbanner"></div>
+  <div id="hint"></div>
+  <div id="plantBar" class="hidden"><div id="plantFill"></div></div>
+  <div id="plantLabel" class="hidden">PLANTING…</div>
+  <div id="hudBottom">
+    <div class="panel">
+      <div id="healthNum">100</div>
+      <div id="healthBar"><div id="healthFill" style="width:100%"></div></div>
+      <div id="moneyLine">$<span id="money">800</span></div>
+    </div>
+    <div class="panel">
+      <div id="weaponName">VK-9 SIDEARM</div>
+      <div id="ammoNum">12 / 36</div>
+      <div id="moneyLine" style="color:#9fb0c3">R reload &nbsp;·&nbsp; G grenade (<span id="nadeCount">0</span>)</div>
+    </div>
+  </div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="card">
+    <h3>TACTICAL FPS &nbsp;·&nbsp; FOUNDRY-7 &nbsp;·&nbsp; 3v4</h3>
+    <h1>EMBERLINE</h1>
+    <p>You are <span class="amber"><b>EMBER</b></span>, the attacking crew, pushing into the
+    Foundry-7 depot held by <span class="teal"><b>FROST</b></span>. Win the round by planting
+    the charge at <b>SITE A</b> or <b>SITE B</b> and letting it blow — or by eliminating the
+    whole FROST squad. First crew to <b>5 rounds</b> takes the match.</p>
+    <p>Money is earned every round: kills, plants and round wins pay. Spend it in the buy
+    menu between rounds. Standing still and aiming beats spraying on the move — recoil and
+    spread punish wild fire, and headshots deal double damage.</p>
+    <div class="keys">
+      <b>W A S D</b> move &nbsp; <b>Mouse</b> aim &nbsp; <b>Click</b> fire &nbsp;
+      <b>R</b> reload &nbsp; <b>1–4</b> weapons &nbsp; <b>G</b> grenade<br>
+      <b>C</b> / <b>Ctrl</b> crouch &nbsp; <b>E</b> plant / defuse &nbsp; <b>B</b> buy menu &nbsp;
+      <b>Shift</b> walk quietly (slow, accurate)
+    </div>
+    <button class="bigbtn" id="deployBtn">DEPLOY — ROUND 1</button>
+  </div>
+</div>
+
+<div id="buy" class="overlay hidden">
+  <div class="card">
+    <h2>BUY PHASE — <span id="buyMoney">$800</span></h2>
+    <p>Round <span id="buyRound">1</span> starts in <b id="buyTimer">20</b>s. Click a card or press
+    its number key. Weapons stay in your loadout for the whole match.</p>
+    <div class="shopGrid" id="shopGrid"></div>
+    <button class="bigbtn" id="buyDoneBtn">START ROUND</button>
+    <button class="bigbtn ghost" id="buySkipBtn">KEEP LOADOUT</button>
+  </div>
+</div>
+
+<div id="roundEnd" class="overlay hidden">
+  <div class="card">
+    <h2 id="roundEndTitle">ROUND WON</h2>
+    <p id="roundEndText"></p>
+    <p class="scoreLine"><span class="amber">EMBER <span id="reScoreUs">0</span></span>
+      &nbsp;—&nbsp; <span class="teal"><span id="reScoreThem">0</span> FROST</span></p>
+    <p id="roundEndMoney"></p>
+    <button class="bigbtn" id="nextRoundBtn">NEXT ROUND</button>
+  </div>
+</div>
+
+<div id="matchEnd" class="overlay hidden">
+  <div class="card">
+    <h2 id="matchTitle">EMBER TAKES FOUNDRY-7</h2>
+    <p id="matchText"></p>
+    <button class="bigbtn" id="againBtn">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
