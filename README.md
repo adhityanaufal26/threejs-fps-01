@@ -1,0 +1,1 @@
+EMBERLINE is a round-based tactical FPS in the browser: attack the Foundry-7 depot as EMBER, plant the charge at Site A or Site B or eliminate the FROST squad, earn money between rounds, buy weapons and grenades, and win 5 rounds to take the match — all against bots, offline, in three.js.
